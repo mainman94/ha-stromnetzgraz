@@ -35,4 +35,4 @@ See [GitHub Releases](https://github.com/mainman94/ha-stromnetzgraz/releases/).
 
 # Version
 
-Can be used with Home Assistant >= `2022.11`
+Can be used with Home Assistant >= `2025.11`
