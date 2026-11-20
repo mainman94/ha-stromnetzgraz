@@ -1,5 +1,8 @@
 # Home Assistant Custom Component for Stromnetz Graz
 
+Maintained fork of [dreautall/ha-stromnetzgraz](https://github.com/dreautall/ha-stromnetzgraz)
+with fixes for current Home Assistant releases. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
 Home Assistant Custom Component for Stromnetz Graz integration.
 
 You must have a working login to the [Stromnetz Graz Web Portal](https://webportal.stromnetz-graz.at/) and be able to see your meter readings there. Please refer to Stromnetz Graz how to set up access if you don't have it.
@@ -20,7 +23,7 @@ Because of that limitation, related values on the energy dashboard (CO₂ and pr
 
 ## Installation (HACS)
 
-When using HACS, just add this repository as a [custom repostiory](https://hacs.xyz/docs/navigation/settings#custom-repositories) of category `Integration` with the url `https://github.com/dreautall/ha-stromnetzgraz`.
+When using HACS, just add this repository as a [custom repository](https://hacs.xyz/docs/navigation/settings#custom-repositories) of category `Integration` with the url `https://github.com/mainman94/ha-stromnetzgraz`.
 
 ## Installation (manual)
 
@@ -28,7 +31,7 @@ Place the folder `stromnetzgraz` and all it's files in the folder `custom_compon
 
 # Release notes
 
-See [Github Releases](https://github.com/dreautall/ha-stromnetzgraz/releases/).
+See [GitHub Releases](https://github.com/mainman94/ha-stromnetzgraz/releases/).
 
 # Version
 
