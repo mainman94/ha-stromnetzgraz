@@ -241,13 +241,12 @@ class SNGrazDataCoordinator(DataUpdateCoordinator):
         # However the consumption actually belongs to the 8:00-9:00 bin.
         # Strictly speaking, the same applies for any binning and reading interval
         df["readTime"] = df["readTime"] - timedelta(seconds=1)
+        prices: list[tuple[datetime, float]] = []
         if price_entity := self.config_entry.options.get(str(meter.id)):
-            df = add_cost(
-                df,
-                await self._fetch_prices(
-                    price_entity, df["readTime"].min(), df["readTime"].max()
-                ),
+            prices = await self._fetch_prices(
+                price_entity, df["readTime"].min(), df["readTime"].max()
             )
+            df = add_cost(df, prices)
         df_hour = hourly_frame(df)
         if df_hour.empty:
             return
@@ -273,7 +272,9 @@ class SNGrazDataCoordinator(DataUpdateCoordinator):
         async_add_external_statistics(self.hass, metadata, statistics)
 
         if "COST" in df_hour:
-            await self._insert_cost_statistics(meter, df_hour["COST"].dropna())
+            await self._insert_cost_statistics(
+                meter, df_hour["COST"].dropna(), prices[0][0]
+            )
 
     async def _fetch_prices(
         self, entity_id: str, start: pandas.Timestamp, end: pandas.Timestamp
@@ -303,12 +304,15 @@ class SNGrazDataCoordinator(DataUpdateCoordinator):
         return prices
 
     async def _insert_cost_statistics(
-        self, meter: SNGrazMeter, costs: pandas.Series
+        self, meter: SNGrazMeter, costs: pandas.Series, priced_since: datetime
     ) -> None:
-        """Insert the cost statistic; like consumption, the fetched window is re-summed each update."""
+        """Insert the cost statistic; the fetched window is re-summed where its price is known."""
+        statistic_id = f"{DOMAIN}:energy_cost_{meter.id}"
+        if await self._newest_statistic(statistic_id) is not None:
+            # Stored hours from before the price history were costed with a guessed price: keep them.
+            costs = costs[costs.index >= priced_since]
         if costs.empty:
             return
-        statistic_id = f"{DOMAIN}:energy_cost_{meter.id}"
 
         # Same partial first hour as for consumption.
         last_sum, last_start = await self._last_statistic(
