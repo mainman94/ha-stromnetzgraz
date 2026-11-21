@@ -5,6 +5,7 @@ from datetime import timedelta, datetime
 from functools import partial
 import asyncio
 import logging
+import time
 
 import aiohttp
 import pandas
@@ -44,7 +45,7 @@ from .sngraz import InvalidLogin, SNGrazError, SNGrazMeter, SNGrazInstallation
 from . import SNGrazConfigEntry
 from .const import DOMAIN
 from .cost import add_cost, price_factor
-from .stats import build_cost_statistics, build_statistics, hourly_frame
+from .stats import backfill_days, build_cost_statistics, build_statistics, hourly_frame
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -189,12 +190,23 @@ class SNGrazDataCoordinator(DataUpdateCoordinator):
             {"sum"},
         )
         if not stat:
-            return 0.0, None
+            # Nothing stored from `since` on (after a break): continue from the newest row before it.
+            return await self._newest_statistic(statistic_id) or (0.0, None)
         row = stat[statistic_id][0]
         start = row["start"]
         if isinstance(start, datetime):
             start = start.timestamp()
         return row["sum"], start
+
+    async def _newest_statistic(self, statistic_id: str) -> tuple[float, float] | None:
+        """Sum and start (POSIX timestamp) of the newest stored statistic, None if there is none."""
+        stat = await get_instance(self.hass).async_add_executor_job(
+            get_last_statistics, self.hass, 1, statistic_id, True, {"sum"}
+        )
+        if not stat:
+            return None
+        row = stat[statistic_id][0]
+        return row["sum"], row["start"]
 
     async def _insert_meter_statistics(
         self, meter: SNGrazMeter, base_reading: float | None
@@ -203,20 +215,21 @@ class SNGrazDataCoordinator(DataUpdateCoordinator):
         _LOGGER.info("adding historical statistics for %s", meter._short_name)
         statistic_id = f"{DOMAIN}:energy_consumption_{meter.id}"
 
-        last_stats = await get_instance(self.hass).async_add_executor_job(
-            get_last_statistics,
-            self.hass,
-            1,
-            statistic_id,
-            True,
-            set(),
-        )
-        if not last_stats:
+        newest = await self._newest_statistic(statistic_id)
+        if newest is None:
             # First time we insert 5 years of data (if available)
             _LOGGER.info(
                 "first time for %s, trying to get up to five years", meter._short_name
             )
             _data = await meter.get_historic_data(5 * 365)
+        elif days := backfill_days(newest[1], time.time()):
+            # Home Assistant was off longer than the window: fill the break too.
+            _LOGGER.info(
+                "%s: last statistic is older than 30 days, fetching %d days",
+                meter._short_name,
+                days,
+            )
+            _data = await meter.get_historic_data(days)
         else:
             # We update the statistics with the last 30 days of data to handle corrections in the data.
             _data = meter._data
