@@ -149,12 +149,12 @@ class StromNetzGraz:
         if "error" in resp and resp.get("error") != "":
             raise InvalidLogin(resp.get("error"))
         if ("success" in resp and not resp.get("success")) or not resp.get("token"):
-            raise ValueError("no token returned")
+            raise SNGrazError("login: no token returned", 200)
 
         self._jwt = resp.get("token")
 
         if not self.ok:
-            raise Exception("login failed")
+            raise SNGrazError("login: the token is already expired", 200)
 
         return True
 
