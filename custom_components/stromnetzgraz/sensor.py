@@ -103,13 +103,18 @@ async def async_setup_entry(
         for meter in installation.get_meters():
             _LOGGER.debug(f"Got meter {meter.id}")
             if str(meter.id) not in base_readings:
+                # sngraz asks for the week after the first reading, which fails (HTTP 400)
+                # while the meter has less than a week of data; retried on the next setup.
                 if (base_reading := await meter.get_first_reading()) is None:
-                    _LOGGER.error("could not get first reading")
-                    continue
-                base_readings[str(meter.id)] = base_reading
+                    _LOGGER.warning(
+                        "could not get first reading for %s, summing consumption instead",
+                        meter.id,
+                    )
+                else:
+                    base_readings[str(meter.id)] = base_reading
 
-                data = {**entry.data, CONF_BASE: base_readings}
-                hass.config_entries.async_update_entry(entry, data=data)
+                    data = {**entry.data, CONF_BASE: base_readings}
+                    hass.config_entries.async_update_entry(entry, data=data)
 
             if coordinator is None:
                 _LOGGER.debug(f"creating new coordinator")
